@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Agri-Intel Result</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; background: #f9f9f9; }
+        .card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .question { background: #f0f0f0; }
+        .answer { background: #e6f7ff; white-space: pre-wrap; /* Respects newlines from LLM */ }
+        .disease { background: #fff0f0; border: 1px solid #d9534f; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Agri-Intel Result 🤖</h1>
+
+    <div class="card question">
+        <strong>Your Question:</strong>
+        <p>{{ question }}</p>
+    </div>
+    
+    <!-- This section shows the ML model's analysis -->
+    {% if disease_info %}
+        <div class="card disease">
+            <strong>Image Analysis:</strong>
+            {% if disease_info.error %}
+                <p class="error">Error processing image: {{ disease_info.error }}</p>
+            {% else %}
+                <p>
+                    Disease Detected: {{ disease_info.disease }}
+                    (Confidence: {{ disease_info.confidence|floatformat:2 }}%)
+                </p>
+            {% endif %}
+        </div>
+    {% endif %}
+    
+    <!-- This section shows the LLM's final answer -->
+    <div class="card answer">
+        <strong>Agri-Intel's Answer:</strong>
+        <p>{{ final_answer }}</p>
+    </div>
+
+    <br>
+    <!-- 
+      THIS IS THE CORRECTED LINK:
+      It now points to 'app_uploads:upload'
+    -->
+    <a href="{% url 'app_uploads:upload' %}">Ask another question</a>
+</body>
+</html>
+

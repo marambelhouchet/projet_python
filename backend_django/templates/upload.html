@@ -1,15 +1,13 @@
-<!-- upload.html -->
 <!DOCTYPE html>
 <html>
-<head>
-    <title>Upload Image</title>
-</head>
+<head><title>Upload Leaf Image</title></head>
 <body>
-    <h1>Upload a Plant Image</h1>
-    <form method="POST" enctype="multipart/form-data">
-        {% csrf_token %}
-        <input type="file" name="image">
-        <button type="submit">Upload</button>
-    </form>
+  <h2>Upload a Plant Leaf Photo</h2>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="file" name="photo" accept="image/*" required><br><br>
+    <textarea name="question" placeholder="Ask something about the disease..."></textarea><br><br>
+    <button type="submit">Analyze</button>
+  </form>
 </body>
 </html>
