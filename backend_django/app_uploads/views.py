@@ -1,128 +1,100 @@
-from django.shortcuts import render
-import requests
-import os
-from openai import OpenAI  # <-- Keep this import
+from django.shortcuts import render, redirect
+import logging # Import logging module for server-side logs
 
-# ===============================================================
-# 1. CONFIGURE THE LLM CLIENT (Ollama)
-# ===============================================================
+# Import the agent runner function from your new agent file (rag_agent.py)
+# Use a try-except block to handle potential import errors gracefully
 try:
-    # Point to your local Ollama API endpoint (default port 11434)
-    client = OpenAI(
-        base_url='http://localhost:11434/v1',
-        api_key='ollama',  # Ollama doesn’t actually check this key
-    )
-    LLM_MODEL_NAME = "llama3:latest"  # Change this if using another model
-    print("✅ Ollama client initialized for model:", LLM_MODEL_NAME)
+    from .rag_agent import run_agent
+    agent_available = True
+    logging.info("Successfully imported run_agent from .rag_agent")
+except ImportError as e:
+     # Log a critical error if the agent code cannot be imported
+     logging.critical(f"CRITICAL: Could not import run_agent from .rag_agent: {e}", exc_info=True)
+     logging.critical("CRITICAL: The main agent logic is missing or broken. The application will not function correctly.")
+     agent_available = False
+     run_agent = None # Define run_agent as None so checks later don't cause NameError
 except Exception as e:
-    print(f"❌ Error initializing Ollama client: {e}")
-    print("⚠️ Make sure your Ollama server is running (use 'ollama serve').")
-    client = None
+     # Catch any other unexpected errors during import
+     logging.critical(f"CRITICAL: An unexpected error occurred during rag_agent import: {e}", exc_info=True)
+     agent_available = False
+     run_agent = None
 
-# ===============================================================
-# 2. CONFIGURE FASTAPI ENDPOINT (DISEASE PREDICTION API)
-# ===============================================================
-DISEASE_API_URL = "http://127.0.0.1:8001/predict"
+# Get a logger instance for this module
+logger = logging.getLogger(__name__)
 
-
-# ===============================================================
-# 3. HELPER FUNCTION: ASK LLM FOR ADDITIONAL INFO OR ADVICE
-# ===============================================================
-def get_llm_response(user_question, disease_info):
-    """
-    Sends a message to the LLM (via Ollama) combining user question and model output.
-    Returns a generated response string or an error message.
-    """
-    if client is None:
-        return "LLM client not initialized. Please start the Ollama server."
-
-    # --- Create the Prompt ---
-    system_prompt = (
-        "You are 'Agri-Intel', a friendly and expert agricultural assistant. "
-        "Your job is to help users identify plant diseases and give them clear, "
-        "actionable, step-by-step treatment plans. "
-        "Always be encouraging and professional."
-    )
-    
-    user_prompt = ""
-    
-    if disease_info and "error" not in disease_info:
-        # Case 1: Image was provided AND successfully analyzed
-        disease_name = disease_info.get('disease', 'Unknown Disease')
-        confidence = disease_info.get('confidence', 0)
-        
-        user_prompt = (
-            f"A user has uploaded a photo of their plant. My vision model has identified "
-            f"the disease as '{disease_name}' with {confidence*100:.0f}% confidence.\n\n"
-            f"The user's question is: '{user_question}'\n\n"
-            "Please do the following:\n"
-            "1. Gently confirm the disease (e.g., 'It looks like your plant has...').\n"
-            "2. Provide a clear, step-by-step treatment plan (e.g., pruning, fungicides, etc.).\n"
-            "3. Give advice on how to prevent this disease in the future."
-        )
-    else:
-        # Case 2: No image, or image analysis failed
-        user_prompt = (
-            f"A user did not upload an image (or it failed to process). "
-            f"They have a general agriculture question.\n\n"
-            f"Their question is: '{user_question}'\n\n"
-            "Please answer their question based on your general agricultural knowledge."
-        )
-
-    # --- Call the Ollama API ---
-    try:
-        response = client.chat.completions.create(
-            model=LLM_MODEL_NAME,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        return f"Error getting LLM response: {e}"
-
-
-# ===============================================================
-# 4. MAIN VIEW: HANDLE UPLOAD + FASTAPI + LLM RESPONSE
-# ===============================================================
 def upload_view(request):
     """
-    Handles uploading a photo and sending it to the FastAPI model.
-    Renders 'upload.html' for GET requests.
-    Renders 'result.html' for POST requests after sending the photo to FastAPI.
+    Handles the web request for the upload page.
+    GET request: Shows the upload form.
+    POST request: Gets user input, calls the agent, and shows the result.
     """
-    if request.method == "POST" and 'photo' in request.FILES:
-        # Get uploaded photo
-        image = request.FILES['photo']
+    # Handle POST request (when user submits the form)
+    if request.method == 'POST':
+        # Get the text question from the form's 'question' field
+        user_question = request.POST.get('question', '').strip()
+        logger.info(f"Received POST request. User question: '{user_question}'")
 
-        # Prepare the file to send to FastAPI
-        # FIX: The key 'image' must match your FastAPI 'create_prediction' parameter
-        files = {'image': (image.name, image.read(), image.content_type)} 
+        # Get the uploaded image file (if any) from the form's 'photo' field
+        image_file = request.FILES.get('photo', None)
+        image_bytes = None # Initialize as None
+        image_uploaded_successfully = False # Flag for the template
 
-        # Get user question from the form
-        user_question = request.POST.get("question", "").strip()
+        # Default question if the user uploads an image but leaves the text box blank
+        if not user_question and image_file:
+             user_question = "Analyze the provided image and describe the findings, including potential diseases and treatments."
+             logger.info(f"User submitted image but no question. Using default: '{user_question}'")
+        # Handle case where user submits nothing at all
+        elif not user_question and not image_file:
+             # Redirect back to upload page with an error message perhaps?
+             # For now, let's proceed but the agent will likely just respond based on this
+             logger.warning("User submitted empty form. Using default question.")
+             user_question = "Hello! Please provide a question or upload an image."
 
-        # Send image to FastAPI prediction service
-        disease_data = None # Use this variable to store API response or error
-        try:
-            response = requests.post(DISEASE_API_URL, files=files, timeout=10)
-            response.raise_for_status()
-            disease_data = response.json()
-        except requests.exceptions.RequestException as e:
-            disease_data = {"error": f"FastAPI server not reachable: {e}"}
 
-        # Ask LLM for advice
-        # Pass the user's question and the disease data to the LLM
-        final_llm_answer = get_llm_response(user_question, disease_data)
+        # If an image file was uploaded, try to read its content (bytes)
+        if image_file:
+            try:
+                image_bytes = image_file.read()
+                # Basic validation: check if bytes were actually read
+                if not image_bytes:
+                    logger.warning(f"Uploaded image file '{image_file.name}' appears to be empty.")
+                    image_bytes = None # Treat as if no image was uploaded
+                else:
+                    logger.info(f"Successfully read image file: '{image_file.name}', size: {len(image_bytes)} bytes")
+                    image_uploaded_successfully = True # Set flag for template
+            except Exception as e:
+                # Log error if reading the file fails
+                logger.error(f"Error reading uploaded image file '{image_file.name}': {e}", exc_info=True)
+                image_bytes = None # Ensure image_bytes is None if reading failed
 
-        # Render the result page
-        # FIX: Change variable names to match result.html
-        return render(request, "result.html", {
-            "disease_info": disease_data,      # Was "result"
-            "final_answer": final_llm_answer,  # Was "llm_reply"
-            "question": user_question,         # Was "user_question"
-        })
+        # Check if the agent function was imported correctly before trying to call it
+        if not agent_available or run_agent is None:
+             agent_response = "ERROR: The Agri-Intel agent system is currently unavailable due to an internal setup issue. Please contact the administrator or check the server logs."
+             logger.critical("Cannot execute agent: run_agent function is not available (import failed).")
+        else:
+            # Call the agent runner function with the user's question and image bytes (if any)
+            try:
+                logger.info(f"Dispatching request to agent. Image provided: {image_uploaded_successfully}")
+                # This is where the agent logic in rag_agent.py takes over
+                agent_response = run_agent(user_question, image_bytes)
+                logger.info("Agent call finished. Received response.")
+            except Exception as e:
+                 # Catch unexpected errors during the agent's execution
+                 logger.critical(f"!!! CRITICAL: Unhandled Error calling run_agent from view: {e} !!!", exc_info=True)
+                 agent_response = f"An critical internal error occurred while processing your request. Please check the server logs for details. Error type: {type(e).__name__}"
 
-    # For GET request — show the upload form
-    return render(request, "upload.html")
+
+        # Prepare the data to be sent to the result.html template
+        context = {
+            'question': user_question,         # The user's original (or default) question
+            'agent_response': agent_response,  # The final answer generated by the agent
+            'image_uploaded': image_uploaded_successfully # Boolean flag for the template
+        }
+        # Render the result page with the context data
+        return render(request, 'result.html', context)
+
+    # Handle GET request (when user first visits the page)
+    else: # request.method == 'GET'
+        logger.info("Received GET request for upload page.")
+        # Just render the empty upload form
+        return render(request, 'upload.html')
