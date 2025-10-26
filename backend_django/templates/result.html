@@ -1,133 +1,39 @@
 <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0"> {# Added viewport for responsiveness #}
-        <title>Agri-Intel Result</title>
-        <style>
-            body {
-                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                max-width: 800px; /* Wider max-width */
-                margin: 2rem auto;
-                padding: 15px; /* Slightly reduced padding */
-                background-color: #f9fafb; /* Lighter grey background */
-                color: #1f2937; /* Darker text */
-                line-height: 1.7; /* Increased line height for readability */
-            }
-            .card {
-                background-color: #ffffff; /* White card background */
-                padding: 20px 25px; /* Adjust padding */
-                border-radius: 12px; /* Softer corners */
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Softer shadow */
-                margin-bottom: 25px;
-                border: 1px solid #e5e7eb; /* Subtle border */
-            }
-            .question {
-                background-color: #f3f4f6; /* Lighter grey for question */
-                border-left: 5px solid #60a5fa; /* Blue accent */
-                white-space: pre-wrap; /* Preserve formatting */
-            }
-            .answer {
-                background-color: #f0fdf4; /* Very light green for answer */
-                border-left: 5px solid #4ade80; /* Green accent */
-                white-space: pre-wrap; /* Preserve formatting of agent response */
-                font-size: 1rem; /* Standard font size */
-            }
-            h1 {
-                text-align: center;
-                color: #111827; /* Darker heading */
-                margin-bottom: 35px;
-                font-weight: 700; /* Bolder heading */
-                font-size: 1.75rem; /* Larger heading */
-            }
-            strong {
-                color: #111827;
-                font-weight: 600;
-                display: block;
-                margin-bottom: 10px;
-                font-size: 1.15em; /* Slightly larger strong text */
-            }
-            p {
-                margin-top: 0;
-                margin-bottom: 1.2em; /* Slightly more space between paragraphs */
-            }
-            a.button-link { /* Style the link like a button */
-                display: inline-block;
-                margin-top: 25px;
-                color: #ffffff; /* White text */
-                background-color: #4f46e5; /* Indigo background */
-                font-weight: 500;
-                padding: 12px 20px; /* Button padding */
-                border-radius: 8px;
-                text-decoration: none;
-                transition: background-color 0.2s ease, box-shadow 0.2s ease;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            }
-            a.button-link:hover {
-                background-color: #4338ca; /* Darker indigo on hover */
-                text-decoration: none;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            }
-            em { /* Style for image note */
-                color: #4b5563; /* Medium grey */
-                font-size: 0.9em;
-                display: block; /* Put on its own line */
-                margin-top: -10px; /* Adjust spacing */
-                margin-bottom: 10px;
-            }
-            /* Styles for code blocks if the agent uses markdown */
-            pre {
-                background-color: #f3f4f6;
-                padding: 15px;
-                border-radius: 8px;
-                overflow-x: auto; /* Allow horizontal scroll for long code */
-                font-family: 'Courier New', Courier, monospace; /* Monospace font */
-                font-size: 0.9em; /* Slightly smaller code font */
-                border: 1px solid #d1d5db; /* Subtle border for code block */
-            }
-            code { /* Inline code style */
-                font-family: 'Courier New', Courier, monospace;
-                background-color: #e5e7eb;
-                padding: 2px 4px;
-                border-radius: 4px;
-                font-size: 0.9em;
-            }
-            ul, ol {
-                padding-left: 25px; /* Indent lists */
-                margin-bottom: 1.2em;
-            }
-            li {
-                margin-bottom: 0.6em; /* Space between list items */
-            }
-            hr { /* Style horizontal rules if used by agent */
-                 border: none;
-                 border-top: 1px solid #e5e7eb;
-                 margin: 20px 0;
-            }
-        </style>
-    </head>
-    <body>
-        <h1>Agri-Intel Result 🧠✨</h1>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Prediction Result 🌿</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f9fff9; text-align: center; padding: 40px; }
+    .card { background: white; padding: 30px; border-radius: 15px; display: inline-block; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 500px; }
+    h2 { color: #2d6a4f; }
+    p { text-align: left; }
+    a { color: #4CAF50; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>🧬 Prediction Result</h2>
 
-        <div class="card question">
-            <strong>Your Query:</strong>
-            <p>{{ question }}</p> {# Display the user's question #}
-            {% if image_uploaded %} {# Conditionally show if an image was part of the query #}
-                <em>(Image was provided for analysis)</em>
-            {% endif %}
-        </div>
+    {% if disease_info.error %}
+      <p><strong>Error:</strong> {{ disease_info.error }}</p>
+    {% else %}
+      <p><strong>Disease:</strong> {{ disease_info.disease }}</p>
+      <p><strong>Confidence:</strong> {{ disease_info.confidence }}</p>
+    {% endif %}
 
-        <div class="card answer">
-            <strong>Agri-Intel's Response:</strong>
-            {# Use Django's linebreaksbr filter to convert agent's newline characters (\n) into <br> and <p> tags for proper HTML display #}
-            <p>{{ agent_response|linebreaksbr }}</p>
-        </div>
+    <h3>💬 Your Question:</h3>
+    <p>{{ question }}</p>
 
-        <div style="text-align: center;"> {# Center the link/button #}
-         {# Link back to the upload page, styled as a button. Make sure 'app_uploads:upload' matches your urls.py #}
-         <a href="{% url 'app_uploads:upload' %}" class="button-link">Ask another question</a>
-        </div>
-    </body>
-    </html>
-    
+    <h3>🤖 LLM Advice:</h3>
+    {% if final_answer %}
+      <p>{{ final_answer }}</p>
+    {% else %}
+      <p>No advice generated. Please try again.</p>
+    {% endif %}
 
+    <br>
+    <a href="/">🔄 Try another image</a>
+  </div>
+</body>
+</html>
